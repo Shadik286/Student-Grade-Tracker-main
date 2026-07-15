@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/subject.dart';
 import '../providers/subject_provider.dart';
+import '../providers/subject_filter_provider.dart';
 import '../widgets/subject_tile.dart';
-
-enum _Filter { all, pass, fail }
 
 class SubjectListScreen extends StatefulWidget {
   const SubjectListScreen({super.key});
@@ -15,32 +13,11 @@ class SubjectListScreen extends StatefulWidget {
 
 class _SubjectListScreenState extends State<SubjectListScreen> {
   final _searchCtrl = TextEditingController();
-  _Filter _filter = _Filter.all;
-  String _query = '';
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
-  }
-
-  List<Subject> _apply(List<Subject> source) {
-    Iterable<Subject> list = source;
-    switch (_filter) {
-      case _Filter.pass:
-        list = list.where((s) => s.isPassing);
-        break;
-      case _Filter.fail:
-        list = list.where((s) => !s.isPassing);
-        break;
-      case _Filter.all:
-        break;
-    }
-    if (_query.isNotEmpty) {
-      final q = _query.toLowerCase();
-      list = list.where((s) => s.name.toLowerCase().contains(q));
-    }
-    return list.toList();
   }
 
   @override
@@ -57,8 +34,10 @@ class _SubjectListScreenState extends State<SubjectListScreen> {
               return const _EmptyState();
             }
 
-            final filtered = _apply(provider.subjects);
+            final filterProvider = context.watch<SubjectFilterProvider>();
+            final filtered = filterProvider.apply(provider.subjects);
             final activeFilterCount = filtered.length;
+            final query = filterProvider.query;
 
             return CustomScrollView(
               slivers: [
@@ -77,7 +56,8 @@ class _SubjectListScreenState extends State<SubjectListScreen> {
                   sliver: SliverToBoxAdapter(
                     child: _SearchField(
                       controller: _searchCtrl,
-                      onChanged: (v) => setState(() => _query = v),
+                      onChanged: (v) =>
+                          context.read<SubjectFilterProvider>().setQuery(v),
                     ),
                   ),
                 ),
@@ -85,8 +65,9 @@ class _SubjectListScreenState extends State<SubjectListScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   sliver: SliverToBoxAdapter(
                     child: _FilterRow(
-                      filter: _filter,
-                      onChanged: (f) => setState(() => _filter = f),
+                      filter: filterProvider.filter,
+                      onChanged: (f) =>
+                          context.read<SubjectFilterProvider>().setFilter(f),
                       visible: activeFilterCount,
                       total: provider.totalSubjects,
                     ),
@@ -95,7 +76,7 @@ class _SubjectListScreenState extends State<SubjectListScreen> {
                 if (filtered.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    child: _NoMatches(query: _query),
+                    child: _NoMatches(query: query),
                   )
                 else
                   SliverPadding(
@@ -398,8 +379,8 @@ class _SearchField extends StatelessWidget {
 // ─── Filter row ─────────────────────────────────────────────────────────────
 
 class _FilterRow extends StatelessWidget {
-  final _Filter filter;
-  final ValueChanged<_Filter> onChanged;
+  final SubjectFilter filter;
+  final ValueChanged<SubjectFilter> onChanged;
   final int visible;
   final int total;
 
@@ -419,24 +400,24 @@ class _FilterRow extends StatelessWidget {
         _Chip(
           label: 'All',
           icon: Icons.apps_rounded,
-          selected: filter == _Filter.all,
-          onTap: () => onChanged(_Filter.all),
+          selected: filter == SubjectFilter.all,
+          onTap: () => onChanged(SubjectFilter.all),
           selectedColor: cs.primary,
         ),
         const SizedBox(width: 8),
         _Chip(
           label: 'Pass',
           icon: Icons.check_circle_rounded,
-          selected: filter == _Filter.pass,
-          onTap: () => onChanged(_Filter.pass),
+          selected: filter == SubjectFilter.pass,
+          onTap: () => onChanged(SubjectFilter.pass),
           selectedColor: cs.primary,
         ),
         const SizedBox(width: 8),
         _Chip(
           label: 'Fail',
           icon: Icons.cancel_rounded,
-          selected: filter == _Filter.fail,
-          onTap: () => onChanged(_Filter.fail),
+          selected: filter == SubjectFilter.fail,
+          onTap: () => onChanged(SubjectFilter.fail),
           selectedColor: cs.error,
         ),
         const Spacer(),

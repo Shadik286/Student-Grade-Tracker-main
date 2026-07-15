@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/subject.dart';
 import '../providers/subject_provider.dart';
+import '../providers/subject_form_provider.dart';
 
 class AddSubjectScreen extends StatefulWidget {
   const AddSubjectScreen({super.key});
@@ -18,22 +19,6 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
   final _nameFocus = FocusNode();
   final _markFocus = FocusNode();
 
-  // Bumping this key rebuilds the Form subtree, which is the most reliable
-  // way to wipe every TextFormField's value + error state at once.
-  // We start at 1 (any non-null Object works) and increment on each add.
-  Object _formReloadKey = const Object();
-
-  // Drives autovalidateMode: we only start validating live *after* the user
-  // has tried to submit once. Before that, errors shouldn't flash on the
-  // freshly-cleared fields after each successful add.
-  bool _autoValidate = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _markController.addListener(() => setState(() {}));
-  }
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -44,26 +29,30 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
   }
 
   void _submitForm() {
-    // First invalid attempt flips _autoValidate on so subsequent edits
-    // re-validate live. After a *successful* submit we turn it back off
+    final formProvider = context.read<SubjectFormProvider>();
+
+    // First invalid attempt flips autoValidate on so subsequent edits
+    // re-validate live. After a successful submit we turn it back off
     // so the freshly-cleared fields don't immediately show error text.
     if (!_formKey.currentState!.validate()) {
-      if (!_autoValidate) {
-        setState(() => _autoValidate = true);
-      }
+      formProvider.markInteraction();
       return;
     }
 
     final provider = context.read<SubjectProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final cs = Theme.of(context).colorScheme;
 
     if (provider.subjectExists(_nameController.text.trim())) {
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(_buildSnack(
+        context: context,
         icon: Icons.error_outline,
         message:
             '"${_nameController.text.trim()}" is already on your list',
         tone: _SnackTone.error,
+        fg: cs.onErrorContainer,
+        bg: cs.errorContainer,
       ));
       return;
     }
@@ -77,33 +66,30 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
 
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(_buildSnack(
+      context: context,
       icon: Icons.check_circle_rounded,
       message:
           '${subject.name} added · Grade ${subject.grade} · ${subject.mark}/100',
       tone: _SnackTone.success,
+      fg: cs.onPrimary,
+      bg: cs.primary,
     ));
 
-    // 1) Drop live-validation so the just-emptied fields don't show
-    //    "cannot be empty" errors.
+    // 1) Reset validation mode + bump reload key BEFORE clearing so the
+    //    Form's reload doesn't repaint red "cannot be empty" errors onto
+    //    the just-emptied fields.
     // 2) Clear the controllers' text.
-    // 3) Bump the reload key so Flutter rebuilds the Form subtree from
-    //    scratch — this is the only 100% reliable way to wipe a
-    //    TextFormField's value and error state when the parent screen
-    //    is kept alive inside a PageView.
-    setState(() {
-      _autoValidate = false;
-      _formReloadKey = Object();
-    });
+    formProvider.resetAfterAdd();
     _nameController.clear();
     _markController.clear();
 
     _nameFocus.requestFocus();
   }
 
-  String? _liveGradePreview() {
-    final raw = _markController.text.trim();
-    if (raw.isEmpty) return null;
-    final mark = int.tryParse(raw);
+  String? _liveGradePreview(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    final mark = int.tryParse(trimmed);
     if (mark == null) return null;
     if (mark < 0 || mark > 100) return null;
     final s = Subject(name: 'preview', mark: mark);
@@ -123,157 +109,6 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
       default:
         return cs.onSurface;
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final preview = _liveGradePreview();
-
-    return Scaffold(
-      backgroundColor: cs.surface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-          child: Form(
-            key: _formKey,
-            // Changing this key forces the Form and its TextFormFields to
-            // be rebuilt from scratch — guarantees the inputs clear after
-            // a successful add, regardless of any cached Form state.
-            child: KeyedSubtree(
-              key: ValueKey(_formReloadKey),
-              child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Header(),
-                const SizedBox(height: 20),
-                _StepCard(
-                  index: 1,
-                  title: 'Subject name',
-                  subtitle: 'e.g. Mathematics, Bangla, Physics',
-                  child: TextFormField(
-                    controller: _nameController,
-                    focusNode: _nameFocus,
-                    textCapitalization: TextCapitalization.words,
-                    textInputAction: TextInputAction.next,
-                    autovalidateMode: _autoValidate
-                        ? AutovalidateMode.onUserInteraction
-                        : AutovalidateMode.disabled,
-                    style: theme.textTheme.titleMedium,
-                    decoration: _inputDecoration(
-                      context,
-                      label: 'Subject',
-                      hint: 'e.g. Mathematics',
-                      icon: Icons.menu_book_rounded,
-                    ),
-                    validator: (value) {
-                      final trimmed = value?.trim() ?? '';
-                      if (trimmed.isEmpty) {
-                        return 'Subject name cannot be empty';
-                      }
-                      if (trimmed.length < 2) {
-                        return 'Name must be at least 2 characters';
-                      }
-                      return null;
-                    },
-                    onFieldSubmitted: (_) => _markFocus.requestFocus(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _StepCard(
-                  index: 2,
-                  title: 'Mark',
-                  subtitle: 'Enter a number from 0 to 100',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextFormField(
-                        controller: _markController,
-                        focusNode: _markFocus,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        autovalidateMode: _autoValidate
-                            ? AutovalidateMode.onUserInteraction
-                            : AutovalidateMode.disabled,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(3),
-                        ],
-                        style: theme.textTheme.titleMedium,
-                        decoration: _inputDecoration(
-                          context,
-                          label: 'Mark (0–100)',
-                          hint: 'e.g. 75',
-                          icon: Icons.star_rate_rounded,
-                          suffix: preview != null
-                              ? Container(
-                                  margin: const EdgeInsets.only(right: 8),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _gradeColor(preview, cs)
-                                        .withOpacity(0.14),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    preview,
-                                    style: TextStyle(
-                                      color: _gradeColor(preview, cs),
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        validator: (value) {
-                          final trimmed = value?.trim() ?? '';
-                          if (trimmed.isEmpty) {
-                            return 'Mark cannot be empty';
-                          }
-                          final mark = int.tryParse(trimmed);
-                          if (mark == null) {
-                            return 'Please enter a valid number';
-                          }
-                          if (mark < 0 || mark > 100) {
-                            return 'Mark must be between 0 and 100';
-                          }
-                          return null;
-                        },
-                        onFieldSubmitted: (_) => _submitForm(),
-                      ),
-                      if (preview != null) ...[
-                        const SizedBox(height: 10),
-                        _PreviewStrip(grade: preview, cs: cs),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 22),
-                ElevatedButton.icon(
-                  onPressed: _submitForm,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Add subject'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                const _GradeLegend(),
-              ],
-            ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   InputDecoration _inputDecoration(
@@ -310,15 +145,181 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final autoValidate =
+        context.select<SubjectFormProvider, bool>((p) => p.autoValidate);
+    final reloadKey =
+        context.select<SubjectFormProvider, Object>((p) => p.reloadKeyValue);
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Form(
+            key: _formKey,
+            // Changing this key forces the Form and its TextFormFields to
+            // be rebuilt from scratch — guarantees the inputs clear after
+            // a successful add, regardless of any cached Form state.
+            child: KeyedSubtree(
+              key: ValueKey(reloadKey),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Header(),
+                  const SizedBox(height: 20),
+                  _StepCard(
+                    index: 1,
+                    title: 'Subject name',
+                    subtitle: 'e.g. Mathematics, Bangla, Physics',
+                    child: TextFormField(
+                      controller: _nameController,
+                      focusNode: _nameFocus,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                      autovalidateMode: autoValidate
+                          ? AutovalidateMode.onUserInteraction
+                          : AutovalidateMode.disabled,
+                      style: theme.textTheme.titleMedium,
+                      decoration: _inputDecoration(
+                        context,
+                        label: 'Subject',
+                        hint: 'e.g. Mathematics',
+                        icon: Icons.menu_book_rounded,
+                      ),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          return 'Subject name cannot be empty';
+                        }
+                        if (trimmed.length < 2) {
+                          return 'Name must be at least 2 characters';
+                        }
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => _markFocus.requestFocus(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _StepCard(
+                    index: 2,
+                    title: 'Mark',
+                    subtitle: 'Enter a number from 0 to 100',
+                    // Drive the live grade preview off the mark controller
+                    // directly. No setState needed — the listenable rebuilds
+                    // only the mark step card on every keystroke.
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _markController,
+                      builder: (context, value, _) {
+                        final preview = _liveGradePreview(value.text);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _markController,
+                              focusNode: _markFocus,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.done,
+                              autovalidateMode: autoValidate
+                                  ? AutovalidateMode.onUserInteraction
+                                  : AutovalidateMode.disabled,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(3),
+                              ],
+                              style: theme.textTheme.titleMedium,
+                              decoration: _inputDecoration(
+                                context,
+                                label: 'Mark (0–100)',
+                                hint: 'e.g. 75',
+                                icon: Icons.star_rate_rounded,
+                                suffix: preview != null
+                                    ? Container(
+                                        margin: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _gradeColor(preview, cs)
+                                              .withOpacity(0.14),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                        ),
+                                        child: Text(
+                                          preview,
+                                          style: TextStyle(
+                                            color: _gradeColor(preview, cs),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              validator: (value) {
+                                final trimmed = value?.trim() ?? '';
+                                if (trimmed.isEmpty) {
+                                  return 'Mark cannot be empty';
+                                }
+                                final mark = int.tryParse(trimmed);
+                                if (mark == null) {
+                                  return 'Please enter a valid number';
+                                }
+                                if (mark < 0 || mark > 100) {
+                                  return 'Mark must be between 0 and 100';
+                                }
+                                return null;
+                              },
+                              onFieldSubmitted: (_) => _submitForm(),
+                            ),
+                            if (preview != null) ...[
+                              const SizedBox(height: 10),
+                              _PreviewStrip(grade: preview, cs: cs),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  ElevatedButton.icon(
+                    onPressed: _submitForm,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add subject'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const _GradeLegend(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Header ────────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
+  const _Header();
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       decoration: BoxDecoration(
@@ -522,23 +523,27 @@ class _PreviewStrip extends StatelessWidget {
 enum _SnackTone { success, error }
 
 SnackBar _buildSnack({
+  required BuildContext context,
   required IconData icon,
   required String message,
   required _SnackTone tone,
+  required Color fg,
+  required Color bg,
 }) {
   return SnackBar(
     behavior: SnackBarBehavior.floating,
     margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+    backgroundColor: bg,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     duration: const Duration(seconds: 3),
     content: Row(
       children: [
-        Icon(icon, color: Colors.white),
+        Icon(icon, color: fg),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             message,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: fg),
           ),
         ),
       ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/subject_provider.dart';
+import 'providers/subject_form_provider.dart';
+import 'providers/subject_filter_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/add_subject_screen.dart';
 import 'screens/subject_list_screen.dart';
@@ -23,6 +25,8 @@ void main() {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SubjectProvider()),
+        ChangeNotifierProvider(create: (_) => SubjectFormProvider()),
+        ChangeNotifierProvider(create: (_) => SubjectFilterProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => NavProvider()),
       ],
