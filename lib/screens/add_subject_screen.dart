@@ -18,6 +18,16 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
   final _nameFocus = FocusNode();
   final _markFocus = FocusNode();
 
+  // Bumping this key rebuilds the Form subtree, which is the most reliable
+  // way to wipe every TextFormField's value + error state at once.
+  // We start at 1 (any non-null Object works) and increment on each add.
+  Object _formReloadKey = const Object();
+
+  // Drives autovalidateMode: we only start validating live *after* the user
+  // has tried to submit once. Before that, errors shouldn't flash on the
+  // freshly-cleared fields after each successful add.
+  bool _autoValidate = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,7 +44,15 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
   }
 
   void _submitForm() {
-    if (!_formKey.currentState!.validate()) return;
+    // First invalid attempt flips _autoValidate on so subsequent edits
+    // re-validate live. After a *successful* submit we turn it back off
+    // so the freshly-cleared fields don't immediately show error text.
+    if (!_formKey.currentState!.validate()) {
+      if (!_autoValidate) {
+        setState(() => _autoValidate = true);
+      }
+      return;
+    }
 
     final provider = context.read<SubjectProvider>();
     final messenger = ScaffoldMessenger.of(context);
@@ -65,9 +83,20 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
       tone: _SnackTone.success,
     ));
 
+    // 1) Drop live-validation so the just-emptied fields don't show
+    //    "cannot be empty" errors.
+    // 2) Clear the controllers' text.
+    // 3) Bump the reload key so Flutter rebuilds the Form subtree from
+    //    scratch — this is the only 100% reliable way to wipe a
+    //    TextFormField's value and error state when the parent screen
+    //    is kept alive inside a PageView.
+    setState(() {
+      _autoValidate = false;
+      _formReloadKey = Object();
+    });
     _nameController.clear();
     _markController.clear();
-    _formKey.currentState!.reset();
+
     _nameFocus.requestFocus();
   }
 
@@ -109,7 +138,12 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           child: Form(
             key: _formKey,
-            child: Column(
+            // Changing this key forces the Form and its TextFormFields to
+            // be rebuilt from scratch — guarantees the inputs clear after
+            // a successful add, regardless of any cached Form state.
+            child: KeyedSubtree(
+              key: ValueKey(_formReloadKey),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Header(),
@@ -123,6 +157,9 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
                     focusNode: _nameFocus,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.next,
+                    autovalidateMode: _autoValidate
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
                     style: theme.textTheme.titleMedium,
                     decoration: _inputDecoration(
                       context,
@@ -156,6 +193,9 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
                         focusNode: _markFocus,
                         keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.done,
+                        autovalidateMode: _autoValidate
+                            ? AutovalidateMode.onUserInteraction
+                            : AutovalidateMode.disabled,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                           LengthLimitingTextInputFormatter(3),
@@ -228,6 +268,7 @@ class _AddSubjectScreenState extends State<AddSubjectScreen> {
                 const SizedBox(height: 22),
                 const _GradeLegend(),
               ],
+            ),
             ),
           ),
         ),
