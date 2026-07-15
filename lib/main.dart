@@ -12,6 +12,7 @@ class NavProvider extends ChangeNotifier {
   int get currentIndex => _currentIndex;
 
   void setIndex(int index) {
+    if (_currentIndex == index) return;
     _currentIndex = index;
     notifyListeners();
   }
@@ -51,17 +52,16 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const _NavWrapper();
-  }
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _NavWrapper extends StatelessWidget {
-  const _NavWrapper();
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final PageController _pageController;
 
   static const List<Widget> _screens = [
     AddSubjectScreen(),
@@ -69,115 +69,171 @@ class _NavWrapper extends StatelessWidget {
     SummaryScreen(),
   ];
 
-  static const List<String> _titles = [
-    'Add Subject',
-    'Subject List',
-    'Summary',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    final nav = context.read<NavProvider>();
+    nav.addListener(_onNavChanged);
+  }
+
+  void _onNavChanged() {
+    final next = context.read<NavProvider>().currentIndex;
+    if (!_pageController.hasClients) return;
+    if (_pageController.page?.round() == next) return;
+    _pageController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    context.read<NavProvider>().removeListener(_onNavChanged);
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int i) {
+    context.read<NavProvider>().setIndex(i);
+  }
+
+  void _onTap(int i) {
+    final nav = context.read<NavProvider>();
+    nav.setIndex(i);
+    if (_pageController.hasClients &&
+        _pageController.page?.round() != i) {
+      _pageController.animateToPage(
+        i,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final themeProvider = context.watch<ThemeProvider>();
-    final navProvider = context.watch<NavProvider>();
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[navProvider.currentIndex]),
-        actions: [
-          IconButton(
-            onPressed: () => context.read<ThemeProvider>().toggleTheme(),
-            icon: Icon(
-              themeProvider.isDarkMode
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-              color: colorScheme.onPrimary,
-            ),
-            tooltip: themeProvider.isDarkMode
-                ? 'Switch to Light Mode'
-                : 'Switch to Dark Mode',
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: IndexedStack(
-        index: navProvider.currentIndex,
+      appBar: const _AppBar(),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        physics: const BouncingScrollPhysics(),
         children: _screens,
       ),
       bottomNavigationBar: _CustomNavBar(
-        currentIndex: navProvider.currentIndex,
-        onTap: (i) => context.read<NavProvider>().setIndex(i),
+        onTap: _onTap,
       ),
     );
   }
 }
 
-class _CustomNavBar extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
+class _AppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _AppBar();
 
-  const _CustomNavBar({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = context.select<ThemeProvider, bool>((t) => t.isDarkMode);
+    final title = context.select<NavProvider, String>((n) {
+      switch (n.currentIndex) {
+        case 0:
+          return 'Add Subject';
+        case 1:
+          return 'Subject List';
+        case 2:
+          return 'Summary';
+        default:
+          return '';
+      }
+    });
+    return AppBar(
+      title: Text(title),
+      actions: [
+        IconButton(
+          onPressed: () => context.read<ThemeProvider>().toggleTheme(),
+          icon: Icon(
+            isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            color: cs.onPrimary,
+          ),
+          tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+}
 
-    final items = <_NavItemData>[
-      const _NavItemData(
-        icon: Icons.menu_book_rounded,
-        outline: Icons.menu_book_outlined,
-        label: 'Add',
-      ),
-      const _NavItemData(
-        icon: Icons.view_list_rounded,
-        outline: Icons.view_list_outlined,
-        label: 'Subjects',
-      ),
-      const _NavItemData(
-        icon: Icons.insights_rounded,
-        outline: Icons.insights_outlined,
-        label: 'Summary',
-      ),
-    ];
+class _CustomNavBar extends StatelessWidget {
+  final ValueChanged<int> onTap;
+
+  const _CustomNavBar({required this.onTap});
+
+  static const List<_NavItemData> _items = [
+    _NavItemData(
+      icon: Icons.menu_book_rounded,
+      outline: Icons.menu_book_outlined,
+      label: 'Add',
+    ),
+    _NavItemData(
+      icon: Icons.view_list_rounded,
+      outline: Icons.view_list_outlined,
+      label: 'Subjects',
+    ),
+    _NavItemData(
+      icon: Icons.insights_rounded,
+      outline: Icons.insights_outlined,
+      label: 'Summary',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final currentIndex =
+        context.select<NavProvider, int>((n) => n.currentIndex);
 
     return SafeArea(
       top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: cs.onSurface.withOpacity(0.08)),
-          boxShadow: [
-            BoxShadow(
-              color: cs.primary.withOpacity(0.18),
-              blurRadius: 28,
-              spreadRadius: -2,
-              offset: const Offset(0, 10),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(items.length, (i) {
-            final selected = i == currentIndex;
-            return Expanded(
-              child: _NavPill(
-                data: items[i],
-                selected: selected,
-                onTap: () => onTap(i),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: cs.onSurface.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: cs.primary.withOpacity(0.16),
+                blurRadius: 20,
+                spreadRadius: -4,
+                offset: const Offset(0, 8),
               ),
-            );
-          }),
+            ],
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = constraints.maxWidth / _items.length;
+              return Row(
+                children: List.generate(_items.length, (i) {
+                  return SizedBox(
+                    width: itemWidth,
+                    height: 52,
+                    child: _NavPill(
+                      data: _items[i],
+                      selected: i == currentIndex,
+                      onTap: () => onTap(i),
+                    ),
+                  );
+                }),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -219,11 +275,13 @@ class _NavPill extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
+        splashColor: cs.primary.withOpacity(0.08),
+        highlightColor: cs.primary.withOpacity(0.04),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
+          duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             gradient: selected
                 ? LinearGradient(
@@ -234,24 +292,16 @@ class _NavPill extends StatelessWidget {
                 : null,
             color: selected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: cs.primary.withOpacity(0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
+                duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                width: 30,
-                height: 30,
+                width: 28,
+                height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: selected
@@ -259,29 +309,40 @@ class _NavPill extends StatelessWidget {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Icon(
-                  selected ? data.icon : data.outline,
-                  size: 20,
-                  color: fg,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, anim) =>
+                      ScaleTransition(scale: anim, child: child),
+                  child: Icon(
+                    selected ? data.icon : data.outline,
+                    key: ValueKey(selected),
+                    size: 20,
+                    color: fg,
+                  ),
                 ),
               ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                child: selected
-                    ? Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Text(
-                          data.label,
-                          style: TextStyle(
-                            color: fg,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+              ClipRect(
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.centerLeft,
+                  widthFactor: selected ? 1.0 : 0.0,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Text(
+                      data.label,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.clip,
+                      style: TextStyle(
+                        color: fg,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
