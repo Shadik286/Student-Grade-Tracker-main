@@ -1,118 +1,57 @@
-# 📘 StudyDesk — Student Grade Tracker
+# Student Grade Tracker
 
-A clean, fast Flutter app for keeping your academic life in one place. Add subjects, drop in your scores, and let the app crunch the numbers — overall average, per-subject breakdowns, and a quick glance at where you stand before exam week hits.
+A small Flutter app where a student can add subjects with marks, see grades, and view a result summary.
 
-Built with Flutter + Provider, themed for both light and dark modes, and wrapped in a custom pill-style bottom nav that feels nicer than the stock `BottomNavigationBar`.
+## What it does
 
----
+- **Add Subject** — enter a subject name and a mark (0–100). The app assigns a grade: A (≥80), B (≥65), C (≥50), F (<50).
+- **Subject List** — see every subject you added. Swipe a row left to delete it.
+- **Summary** — total subjects, average mark, and the overall grade. Updates live when you add or remove a subject.
+- **Light/Dark theme** — toggle in the app bar. All colors come from `Theme.of(context)`, nothing is hardcoded.
 
-## ✨ What it does
+The app has 3 screens switched via a `BottomNavigationBar`.
 
-- **Add subjects on the fly** — name, credit hours, score, max marks, and a quick note.
-- **Subject list at a glance** — color-coded tiles show weighted contribution to your total average.
-- **Smart summary screen** — overall GPA-style aggregate, sorted breakdown of best-to-worst performing subjects, and quick stats (highest, lowest, total credits).
-- **Dark + Light themes** — toggle from the app bar, preference lives in memory for the session.
-- **Custom animated bottom nav** — pill-shaped, gradient-active, with a smooth expand-on-select animation.
-
----
-
-## 🧱 Project layout
+## Project layout
 
 ```
 lib/
-├── main.dart                  # Entry point + MultiProvider + custom nav
-├── models/
-│   └── subject.dart           # Subject data model
+├── main.dart
+├── models/subject.dart
 ├── providers/
-│   ├── subject_provider.dart  # Add/remove/list subjects (ChangeNotifier)
-│   └── theme_provider.dart    # Light/dark toggle
+│   ├── subject_provider.dart
+│   └── theme_provider.dart
 ├── screens/
 │   ├── add_subject_screen.dart
 │   ├── subject_list_screen.dart
 │   └── summary_screen.dart
-├── themes/
-│   └── app_themes.dart        # Material 3 light & dark themes
-└── widgets/
-    └── subject_tile.dart      # Reusable subject card
+├── themes/app_themes.dart
+└── widgets/subject_tile.dart
 ```
 
----
+## How it works
 
-## 🚀 Running it locally
+- `Subject` (`lib/models/subject.dart`) — has a private `_mark` field and a `grade` getter that returns `A`, `B`, `C`, or `F`. Also exposes `isPassing` (mark ≥ 50).
+- `SubjectProvider` (`lib/providers/subject_provider.dart`) — holds `List<Subject>` and exposes `addSubject`, `removeSubject`, `subjects`, `passingSubjects` (uses `.where()`), `failingSubjects` (`.where()`), `averageMark`, `overallGrade`.
+- `ThemeProvider` (`lib/providers/theme_provider.dart`) — toggles between light and dark mode.
+- `app_themes.dart` — defines custom `ThemeData` for both light and dark modes.
+- State is read with `context.watch<T>()` and mutated with `context.read<T>()`. There is no `setState` anywhere.
 
-You'll need the [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.0+) installed.
+## Running it
+
+You need the [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.0+).
 
 ```bash
-# 1. Grab dependencies
 flutter pub get
-
-# 2. Pick a device (or launch an emulator/simulator first)
-flutter devices
-
-# 3. Run it
 flutter run
-
-# 4. (optional) Build a release bundle
-flutter build apk        # Android
-flutter build ios        # iOS
 ```
 
-That's it — no API keys, no env files, no backend. Pure client-side.
+That's it. No API keys, no backend, no environment files. The app stores everything in memory for the session.
 
----
-
-## 🧠 How the state flows
-
-State lives in three `ChangeNotifier`s, all wired up via `MultiProvider` in `main.dart`:
-
-| Provider | Responsibility |
-|---|---|
-| `SubjectProvider` | Holds the `List<Subject>`, exposes add/remove operations |
-| `ThemeProvider` | `bool isDarkMode`, flips on tap |
-| `NavProvider` | Tracks the selected bottom-nav tab index |
-
-Screens read state through `context.watch<T>()` and dispatch mutations through `context.read<T>()`. No `setState`, no boilerplate.
-
----
-
-## 🎨 Theming
-
-All colors, shapes, and component styles live in `lib/themes/app_themes.dart`. Both themes are Material 3, generated from a shared seed color so light and dark feel like the same app — not two strangers. If you want to rebrand:
-
-1. Open `app_themes.dart`
-2. Swap the `seedColor` value in `lightTheme` and `darkTheme`
-3. Hot reload — Flutter regenerates the color scheme automatically.
-
----
-
-
----
-
-## 📦 Dependencies
-
-From `pubspec.yaml`:
+## Dependencies
 
 - `flutter` — SDK
 - `provider: ^6.1.1` — state management
 
 Dev:
 
-- `flutter_lints: ^3.0.0` — lint rules
-
-That's the whole list. Keeping it minimal on purpose.
-
----
-
-## 🛣️ Ideas for next iterations
-
-- Persistent storage with `shared_preferences` or `hive` so subjects survive a restart.
-- Per-subject grade history (multiple assessments per course).
-- Export summary as PDF or CSV.
-- Target grade calculator — "what do I need on the final to land an A?"
-- Localization (currently English-only).
-
----
-
-## 📄 License
-
-Released under the MIT License. Use it, fork it, ship it in your portfolio.
+- `flutter_lints: ^3.0.0`
