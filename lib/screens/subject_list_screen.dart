@@ -156,7 +156,6 @@ class _SummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final theme = Theme.of(context);
     final passRatio = total == 0 ? 0.0 : passing / total;
 
     return Container(
@@ -173,6 +172,7 @@ class _SummaryHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Column(
@@ -180,6 +180,8 @@ class _SummaryHeader extends StatelessWidget {
                   children: [
                     Text(
                       'Your subjects',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: cs.onPrimary.withOpacity(0.85),
                         fontSize: 13,
@@ -189,6 +191,8 @@ class _SummaryHeader extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '$total recorded',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: cs.onPrimary,
                         fontSize: 22,
@@ -199,31 +203,42 @@ class _SummaryHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: cs.onPrimary.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.trending_up_rounded,
-                      color: cs.onPrimary,
-                      size: 16,
+              const SizedBox(width: 10),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${(passRatio * 100).toStringAsFixed(0)}% pass',
-                      style: TextStyle(
-                        color: cs.onPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    decoration: BoxDecoration(
+                      color: cs.onPrimary.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.trending_up_rounded,
+                          color: cs.onPrimary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${(passRatio * 100).toStringAsFixed(0)}% pass',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(
+                            color: cs.onPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -285,30 +300,38 @@ class _HeaderStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: cs.onPrimary.withOpacity(0.85), size: 16),
-        const SizedBox(width: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: cs.onPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            height: 1,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: cs.onPrimary.withOpacity(0.85), size: 16),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              color: cs.onPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
           ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            color: cs.onPrimary.withOpacity(0.85),
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
+          const SizedBox(width: 6),
+          Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              color: cs.onPrimary.withOpacity(0.85),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

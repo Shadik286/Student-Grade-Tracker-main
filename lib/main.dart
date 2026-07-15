@@ -280,8 +280,9 @@ class _NavPill extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          clipBehavior: Clip.hardEdge,
           decoration: BoxDecoration(
             gradient: selected
                 ? LinearGradient(
@@ -293,10 +294,13 @@ class _NavPill extends StatelessWidget {
             color: selected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
@@ -345,6 +349,7 @@ class _NavPill extends StatelessWidget {
                 ),
               ),
             ],
+            ),
           ),
         ),
       ),
