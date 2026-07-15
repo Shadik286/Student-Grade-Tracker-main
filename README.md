@@ -36,17 +36,6 @@ lib/
 - `app_themes.dart` — defines custom `ThemeData` for both light and dark modes.
 - State is read with `context.watch<T>()` and mutated with `context.read<T>()`. There is no `setState` anywhere.
 
-## Running it
-
-You need the [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.0+).
-
-```bash
-flutter pub get
-flutter run
-```
-
-That's it. No API keys, no backend, no environment files. The app stores everything in memory for the session.
-
 ## Dependencies
 
 - `flutter` — SDK
